@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>লগইন / রেজিস্টার</title>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database.js"></script>
+    
+    <!-- CSS: Simple Auth Style -->
+    <style>
+        :root { --primary-color: #9060eb; --bg-light: #f0f0f5; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg-light); display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .auth-container { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1); width: 300px; text-align: center; }
+        h2 { color: var(--primary-color); margin-bottom: 20px; }
+        input { width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background-color: var(--primary-color); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; margin-top: 10px; }
+        button:hover { background-color: #7d49e7; }
+        p.toggle { margin-top: 20px; font-size: 14px; cursor: pointer; color: #555; }
+        p.toggle:hover { color: var(--primary-color); }
+    </style>
+</head>
+<body>
+
+    <div class="auth-container">
+        <h2>লগইন</h2>
+        <input type="email" id="email" placeholder="ইমেইল" required>
+        <input type="password" id="password" placeholder="পাসওয়ার্ড" required>
+        <button onclick="handleAuth(true)">লগইন</button>
+        <button onclick="handleAuth(false)">রেজিস্টার</button>
+        <p class="toggle" onclick="alert('Forgot password logic here')">পাসওয়ার্ড ভুলে গেছেন?</p>
+    </div>
+
+    <script>
+        // ** Firebase Configuration **
+        const firebaseConfig = {
+            apiKey: "AIzaSyCu3SwjRm3mbifkNXFAODff5aEnlJUxeL4", authDomain: "bd-trading-a35d4.firebaseapp.com", databaseURL: "https://bd-trading-a35d4-default-rtdb.firebaseio.com", projectId: "bd-trading-a35d4", storageBucket: "bd-trading-a35d4.firebasestorage.app", messagingSenderId: "147644641744", appId: "1:147644641744:web:96619587c0bfd1bee809d5"
+        };
+        
+        let auth, db;
+        let isFirebaseReady = false; 
+
+        // Firebase Initialization Function
+        function initializeFirebase() {
+            if (typeof firebase === 'undefined' || firebase.apps.length > 0) return;
+
+            try {
+                const app = firebase.initializeApp(firebaseConfig);
+                auth = firebase.auth();
+                db = firebase.database();
+                isFirebaseReady = true;
+                console.log("Firebase Auth & DB initialized.");
+                
+                // লগইন চেক: যদি ইউজার অলরেডি লগইন করা থাকে, তবে তাকে ইউজার অ্যাপে পাঠানো হবে।
+                auth.onAuthStateChanged(user => {
+                    if (user) {
+                        window.location.href = 'user_app.html';
+                    }
+                });
+
+            } catch (error) { 
+                console.error("Firebase Initialization Failed:", error); 
+                alert("Firebase Initialization Error. Check console."); 
+            }
+        }
+
+        // ডকুমেন্ট লোড হওয়ার পর Firebase শুরু করুন
+        document.addEventListener('DOMContentLoaded', initializeFirebase);
+        
+        // Auth Logic
+        function handleAuth(isLogin) {
+            if (!isFirebaseReady) {
+                alert("Authentication service is not ready. Please wait a moment and try again.");
+                return;
+            }
+
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            if (!email || !password) { alert("Email and Password required."); return; }
+            
+
+            if (isLogin) {
+                auth.signInWithEmailAndPassword(email, password)
+                    .catch(error => {
+                        console.error("Login Error:", error);
+                        alert(`Login Failed: ${error.message}`);
+                    });
+            } else {
+                auth.createUserWithEmailAndPassword(email, password)
+                    .then((userCredential) => {
+                        // DB তে ডিফল্ট ইউজার ডেটা সেট করা
+                        const ref = db.ref('users/' + userCredential.user.uid);
+                        return ref.once('value').then(snapshot => {
+                             if (!snapshot.exists()) {
+                                return ref.set({
+                                    email: email,
+                                    balance: 0.00, 
+                                    name: email.split('@')[0],
+                                    profilePic: 'default',
+                                    pendingReward: null,
+                                    referralId: userCredential.user.uid.substring(0, 8),
+                                    referralCount: 0
+                                });
+                            }
+                        });
+                    })
+                    .catch(error => {
+                        console.error("Registration Error:", error);
+                        alert(`Registration Failed: ${error.message}`);
+                    });
+            }
+        }
+    </script>
+</body>
+</html>
