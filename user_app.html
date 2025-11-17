@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trading App Dashboard</title>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database.js"></script>
+    
+    <!-- CSS: Soft UI Theme -->
+    <style>
+        /* ... (CSS অপরিবর্তিত) ... */
+        :root { --primary-light: #f0f0f5; --secondary-purple: #9060eb; --bg-purple: #e0e0f8; --text-dark: #333333; --text-light: #ffffff; --soft-shadow: 5px 5px 10px rgba(0, 0, 0, 0.1), -5px -5px 10px rgba(255, 255, 255, 0.8); --inset-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.1); }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; background-color: var(--bg-purple); display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .app-frame { width: 100%; max-width: 380px; height: 800px; background-color: var(--primary-light); border-radius: 40px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2); overflow: hidden; display: flex; flex-direction: column; position: relative; }
+        .header { padding: 25px 30px 10px 30px; display: flex; justify-content: space-between; align-items: center; color: var(--text-dark); }
+        .header-left { font-weight: 600; font-size: 18px; color: var(--secondary-purple); }
+        .profile-pic { width: 40px; height: 40px; background-color: #e0e0f8; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 20px; color: var(--secondary-purple); box-shadow: var(--soft-shadow); cursor: pointer; }
+        .main-content { flex-grow: 1; padding: 20px 30px; overflow-y: auto; }
+        .section-card { background-color: var(--secondary-purple); color: var(--text-light); padding: 20px; margin-top: 20px; border-radius: 30px; box-shadow: 0 10px 20px rgba(144, 96, 235, 0.4); text-align: center; }
+        .all-buttons-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px 15px; margin-top: 20px; padding: 10px; }
+        .app-btn { text-align: center; cursor: pointer; width: 90px; }
+        .app-btn span { font-size: 30px; background-color: rgba(255,255,255,0.2); border-radius: 50%; padding: 15px; display: inline-block; transition: all 0.2s; }
+        .app-btn:hover span { background-color: rgba(255,255,255,0.4); }
+        .app-btn p { margin-top: 5px; font-weight: 600; font-size: 14px; }
+        .modal { display: none; position: absolute; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); justify-content: center; align-items: center; }
+        .modal-content { background-color: var(--primary-light); margin: 15% auto; padding: 20px; border-radius: 15px; width: 80%; max-width: 300px; color: var(--text-dark); box-shadow: 0 5px 15px rgba(0,0,0,0.3); text-align: center; }
+        .close-btn { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .modal-btn { background-color: var(--secondary-purple); color: white; border: none; padding: 10px 20px; border-radius: 10px; margin: 5px; cursor: pointer; }
+        .modal-input { width: 80%; padding: 10px; margin: 10px 0; border: none; border-radius: 8px; box-shadow: var(--inset-shadow); text-align: center; }
+        .claim-btn { background-color: #2ecc71; }
+    </style>
+</head>
+<body>
+
+    <div class="app-frame" id="userApp">
+        
+        <!-- হেডার: ব্যালেন্স ও প্রোফাইল ছবি -->
+        <div class="header">
+            <div class="header-left" id="currentBalance">$0.00</div>
+            <div class="profile-pic" onclick="openModal('profileModal')">&#x1f464;</div>
+        </div>
+        
+        <!-- মূল কন্টেন্ট -->
+        <div class="main-content">
+            <div class="section-card">
+                <h3 style="margin-bottom: 0;">Access</h3>
+                
+                <div class="all-buttons-container">
+                    <div class="app-btn" onclick="openModal('tradingChartPage')"> <span>&#x1f4c8;</span> <p>Trading Chart</p> </div>
+                    <div class="app-btn" onclick="openModal('walletModal')"> <span>&#x1f4b3;</span> <p>Wallet</p> </div>
+                    <div class="app-btn" onclick="openModal('leaderboardModal')"> <span>&#x1f3c6;</span> <p>Leaderboard</p> </div>
+                    <div class="app-btn" onclick="openModal('rewardModal')"> <span>&#x1f381;</span> <p>Daily Reward</p> </div>
+                    <div class="app-btn" onclick="openModal('earningModal')"> <span>&#x1f4b8;</span> <p>Earning</p> </div>
+                    <div class="app-btn" onclick="openModal('profileModal')"> <span>&#x1f464;</span> <p>Profile</p> </div>
+                    <div class="app-btn" onclick="navigate('refer')"> <span>&#x1f465;</span> <p>Refer</p> </div>
+                </div>
+            </div>
+            
+        </div>
+
+        <!-- Modal Section -->
+        <div id="walletModal" class="modal"> <div class="modal-content"> <span class="close-btn" onclick="closeModal('walletModal')">&times;</span> <h2>Wallet</h2> <h3 id="walletBalance">$0.00</h3> <hr><h4>Deposit (TRC20)</h4><p id="depositAddress">Loading TRC20 Address...</p><input type="number" id="depositAmount" class="modal-input" placeholder="Amount (USD)"><button class="modal-btn" onclick="confirmDeposit()">Confirm Deposit</button><hr><h4>Withdraw (TRC20)</h4><input type="text" id="withdrawAddress" class="modal-input" placeholder="Your TRC20 Address"><input type="number" id="withdrawAmount" class="modal-input" placeholder="Amount (USD)"><button class="modal-btn" onclick="confirmWithdraw()">Confirm Withdraw</button></div> </div>
+        <div id="leaderboardModal" class="modal"> <div class="modal-content"> <span class="close-btn" onclick="closeModal('leaderboardModal')">&times;</span> <h2>Leaderboard</h2> <p>Live data from DB</p> </div> </div>
+        <div id="rewardModal" class="modal"> <div class="modal-content"> <span class="close-btn" onclick="closeModal('rewardModal')">&times;</span> <h2>Daily Reward</h2> <p id="rewardStatus">Checking for reward...</p> <p style="color:#9060eb;" id="rewardReasonText">কারণ: N/A</p> <h3 style="color:#2ecc71;" id="rewardAmountText">$0.00</h3> <button class="modal-btn claim-btn" id="claimButton" onclick="claimReward()" style="display:none;">CLAIM</button> </div> </div>
+        <div id="earningModal" class="modal"> <div class="modal-content"> <span class="close-btn" onclick="closeModal('earningModal')">&times;</span> <h2>Earning Plan</h2> <p style="font-size: 14px; color: #555;">আপনার টাকাটি আমাদের কাছে সুরক্ষিত।</p> <p style="font-weight: 600;" id="earningProfitText">Loading Profit Rate...</p> <input type="number" id="submitAmount" class="modal-input" placeholder="Amount to Submit ($)" value="100"> <button class="modal-btn" onclick="submitEarningPlan()">SUBMIT</button> </div> </div>
+        <div id="tradingChartPage" class="modal"> <div class="modal-content" style="max-width: 90%; height: 80%; background-color: #1a2228; padding: 5px;"> <span class="close-btn" onclick="closeModal('tradingChartPage')" style="color:white; z-index: 10;">&times;</span> <h2 style="color:white; margin: 5px;">Trading Chart</h2> <div class="tradingview-widget-container" style="height:90%; width:100%;"><div id="tradingview_chart_embed" style="height:100%;"></div><script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script><script type="text/javascript">function initializeTradingViewEmbed() { new TradingView.widget({ "width": "100%", "height": "100%", "symbol": "BINANCE:BTCUSDT", "interval": "5", "timezone": "Etc/UTC", "theme": "dark", "style": "1", "locale": "en", "toolbar_bg": "#1a2228", "enable_publishing": false, "hide_top_toolbar": true, "allow_symbol_change": true, "container_id": "tradingview_chart_embed" }); } document.addEventListener('DOMContentLoaded', initializeTradingViewEmbed);</script></div> </div> </div>
+        <div id="profileModal" class="modal"> <div class="modal-content"> <span class="close-btn" onclick="closeModal('profileModal')">&times;</span> <h2>Profile</h2> <p id="profileName">Loading Name...</p> <p id="profileEmail">Loading Email...</p> <button class="modal-btn" onclick="logout()">Logout</button> </div> </div>
+
+    </div>
+
+    <!-- জাভাস্ক্রিপ্ট লজিক -->
+    <script>
+        // ** Firebase Configuration & Init **
+        const firebaseConfig = {
+            apiKey: "AIzaSyCu3SwjRm3mbifkNXFAODff5aEnlJUxeL4", authDomain: "bd-trading-a35d4.firebaseapp.com", databaseURL: "https://bd-trading-a35d4-default-rtdb.firebaseio.com", projectId: "bd-trading-a35d4", storageBucket: "bd-trading-a35d4.firebasestorage.app", messagingSenderId: "147644641744", appId: "1:147644641744:web:96619587c0bfd1bee809d5"
+        };
+        
+        let db, auth;
+        let userId;
+        let currentBalance = 0;
+        let appConfig = {};
+        let currentUserData = {};
+
+        if (typeof firebase !== 'undefined' && firebase.apps.length === 0) {
+            const app = firebase.initializeApp(firebaseConfig);
+            db = firebase.database(); 
+            auth = firebase.auth();
+        } else if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+             db = firebase.database();
+             auth = firebase.auth();
+        }
+
+        // *** Firebase Auth Listener - ইউজার লগইন চেক ও ডেটা লোড শুরু ***
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                userId = user.uid;
+                listenToUserUpdates();
+            } else {
+                // যদি ইউজার লগইন না করে, তাকে সাথে সাথে লগইন পেজে পাঠান।
+                window.location.href = 'index.html'; 
+            }
+        });
+
+        function updateBalanceUI() {
+            document.getElementById('currentBalance').textContent = `$${currentBalance.toFixed(2)}`;
+            document.getElementById('walletBalance').textContent = `$${currentBalance.toFixed(2)}`;
+        }
+
+        function listenToUserUpdates() {
+            if (!db || !userId) return;
+            // 1. User Data (Balance, Reward, Profile)
+            db.ref('users/' + userId).on('value', (snapshot) => {
+                const data = snapshot.val();
+                if (!data) return; 
+                currentUserData = data;
+                currentBalance = data.balance || 0;
+                updateBalanceUI();
+                
+                document.getElementById('profileName').textContent = data.name || 'N/A';
+                document.getElementById('profileEmail').textContent = data.email || 'N/A';
+                
+                // Daily Reward Status
+                if (data.pendingReward && data.pendingReward.amount > 0) {
+                    document.getElementById('rewardStatus').textContent = "Pending Reward!";
+                    document.getElementById('rewardReasonText').textContent = data.pendingReward.reason;
+                    document.getElementById('rewardAmountText').textContent = `$${data.pendingReward.amount.toFixed(2)}`;
+                    document.getElementById('claimButton').style.display = 'block';
+                } else {
+                    document.getElementById('rewardStatus').textContent = "No pending reward.";
+                    document.getElementById('rewardReasonText').textContent = "কারণ: N/A";
+                    document.getElementById('rewardAmountText').textContent = "$0.00";
+                    document.getElementById('claimButton').style.display = 'none';
+                }
+            });
+            
+            // 2. App Config (Addresses, Rates)
+            db.ref('config').on('value', (snapshot) => {
+                appConfig = snapshot.val() || {};
+                const profitRate = appConfig.earningProfitRate || 50;
+                document.getElementById('depositAddress').textContent = appConfig.trc20Address || 'Not set by Admin';
+                document.getElementById('earningProfitText').textContent = `$100 সাবমিট করলে $${(100 * (1 + profitRate / 100)).toFixed(2)} প্রফিট পাবেন (${profitRate}% Profit)`;
+            });
+        }
+        
+        // ** Wallet & Transaction Logic **
+        function confirmDeposit() {
+             const amount = parseFloat(document.getElementById('depositAmount').value);
+             if (amount <= 0 || !appConfig.trc20Address) { alert("Invalid amount or Address not set."); return; }
+             if (!confirm(`Confirm sending $${amount} to the displayed TRC20 address?`)) return;
+             
+             db.ref('transactions').push({ userId, type: 'deposit', amount, status: 'pending', createdAt: Date.now(), userEmail: currentUserData.email })
+                 .then(() => alert("Deposit request sent. Please complete the transfer to the displayed address and wait for Admin approval."));
+             closeModal('walletModal');
+        }
+
+        function confirmWithdraw() {
+             const amount = parseFloat(document.getElementById('withdrawAmount').value);
+             const address = document.getElementById('withdrawAddress').value;
+             if (amount <= 0 || currentBalance < amount || address.length < 30) { alert("Invalid amount or insufficient balance/address."); return; }
+
+             db.ref('users/' + userId + '/balance').transaction((currentBalance) => {
+                if (currentBalance >= amount) return currentBalance - amount;
+                return;
+            }, (error, committed) => {
+                if (committed) {
+                    db.ref('transactions').push({ userId, type: 'withdraw', amount, status: 'pending', address, createdAt: Date.now(), userEmail: currentUserData.email })
+                        .then(() => alert("Withdrawal request sent. Wait for Admin approval."));
+                } else if (!error) { alert('Withdrawal failed: Insufficient balance or Try again.'); }
+                closeModal('walletModal');
+            });
+        }
+        
+        // Referral Link
+        function navigate(section) { 
+            if (section === 'refer') {
+                const telLink = appConfig.telegramLink || 'https://t.me/';
+                alert(`Your Referral Link: ${window.location.origin}/index.html?ref=${currentUserData.referralId}\n\nNote: No deposit required.\n\nTelegram Channel: ${telLink}`);
+                window.open(telLink, '_blank');
+            } else { alert(`Navigating to ${section} section.`); }
+        }
+
+        // Submitting Earning Plan
+        function submitEarningPlan() {
+            if (!db) return;
+            const amount = parseFloat(document.getElementById('submitAmount').value);
+            if (isNaN(amount) || amount <= 0 || currentBalance < amount) { alert(currentBalance < amount ? "Insufficient Balance." : "Invalid amount."); return; }
+            
+            db.ref('users/' + userId + '/balance').transaction((current) => {
+                if (current >= amount) return current - amount;
+                return;
+            }, (error, committed) => {
+                if (committed) {
+                     db.ref('earnings').push({ userId, amount, status: 'active', createdAt: Date.now(), userEmail: currentUserData.email });
+                     alert(`$${amount.toFixed(2)} submitted!`);
+                }
+                closeModal('earningModal');
+            });
+        }
+
+        function claimReward() {
+            if (!db) { alert("DB not connected."); return; }
+            db.ref('users/' + userId).transaction((data) => {
+                if (data && data.pendingReward && data.pendingReward.amount > 0) {
+                    data.balance += data.pendingReward.amount;
+                    data.pendingReward = null; 
+                    alert(`$${data.pendingReward.amount.toFixed(2)} reward claimed!`);
+                    return data;
+                }
+                return;
+            });
+            closeModal('rewardModal');
+        }
+
+        function logout() {
+            auth.signOut().then(() => {
+                window.location.href = 'index.html'; // লগইন পেজ এখন index.html
+            });
+        }
+
+        function openModal(modalId) {
+            if (modalId === 'tradingChartPage' && typeof initializeTradingViewEmbed !== 'undefined' && !document.getElementById('tradingview_chart_embed').querySelector('iframe')) { initializeTradingViewEmbed(); }
+            document.getElementById(modalId).style.display = 'flex';
+        }
+        function closeModal(modalId) { document.getElementById(modalId).style.display = 'none'; }
+        
+        // Initializer
+        document.addEventListener('DOMContentLoaded', () => {
+            // Initialization is handled by auth.onAuthStateChanged
+        });
+        window.onclick = function(event) { if (event.target.classList.contains('modal')) { event.target.style.display = "none"; } }
+    </script>
+</body>
+</html>
